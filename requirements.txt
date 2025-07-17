@@ -1,6 +1,5 @@
-openai
-flask
-pdfplumber
-python-docx
-spacy
+streamlit
+PyPDF2
+docx2txt
+google-generativeai
 python-dotenv

@@ -1,11 +1,17 @@
 import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
+from dotenv import load_dotenv
+import os
 import time
+import re
+import json
+import streamlit as st
 
-# ✅ Replace this with your working Gemini API key
-genai.configure(api_key="AIzaSyCJBNlwrC3SVfIWtI-qDLzmQ6-vyanEL1w")
+# Load key (from .env or Streamlit secrets)
+load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY") or st.secrets["GEMINI_API_KEY"]
+genai.configure(api_key=API_KEY)
 
-# You can customize the model name here
 MODEL_NAME = "gemini-2.0-flash"
 
 def parse_resume_with_gemini(text, retries=3, delay=30, model_name=MODEL_NAME):
@@ -24,15 +30,20 @@ def parse_resume_with_gemini(text, retries=3, delay=30, model_name=MODEL_NAME):
 
     gen_model = genai.GenerativeModel(model_name)
 
-    for attempt in range(1, retries + 1):
+    for attempt in range(1, retries + 3):
         try:
             response = gen_model.generate_content(prompt)
-            return response.text
-        except ResourceExhausted as e:
-            print(f"[Attempt {attempt}] Quota exceeded. Retrying in {delay} seconds...")
-            time.sleep(delay)
-        except Exception as e:
-            print(f"[Attempt {attempt}] Unexpected error: {e}")
-            break
+            result_text = response.text.strip()
 
-    return '{"error": "Quota exceeded or unexpected error occurred. Please try again later."}'
+            # Clean markdown-style code block
+            cleaned = re.sub(r"```json|```", "", result_text).strip()
+            return json.loads(cleaned)
+
+        except ResourceExhausted:
+            time.sleep(delay)
+        except json.JSONDecodeError:
+            return {"error": "Gemini returned invalid JSON. Try rephrasing or cleaning the resume."}
+        except Exception as e:
+            return {"error": f"Unexpected error occurred: {str(e)}"}
+
+    return {"error": "Quota exceeded or unknown error occurred."}

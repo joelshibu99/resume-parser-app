@@ -1,31 +1,53 @@
-from flask import Flask, render_template, request
+import streamlit as st
 from resume_parser import parse_resume_with_gemini
 import PyPDF2
-import os
+import docx2txt
+import json
 
-app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+st.set_page_config(page_title="AI Resume Parser", layout="centered")
+st.title("📄 Resume Parser using Gemini AI")
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    result = ""
-    if request.method == 'POST':
-        file = request.files['resume']
-        if file.filename.endswith('.pdf'):
-            file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-            file.save(file_path)
+uploaded_file = st.file_uploader("Upload your resume (PDF or DOCX)", type=["pdf", "docx"])
 
-            # Extract text from PDF
-            with open(file_path, 'rb') as f:
-                reader = PyPDF2.PdfReader(f)
-                text = ""
-                for page in reader.pages:
-                    text += page.extract_text()
+if uploaded_file:
+    # Extract text
+    if uploaded_file.name.endswith(".pdf"):
+        reader = PyPDF2.PdfReader(uploaded_file)
+        text = "".join([page.extract_text() or "" for page in reader.pages])
+    elif uploaded_file.name.endswith(".docx"):
+        text = docx2txt.process(uploaded_file)
+    else:
+        st.error("Unsupported file format.")
+        text = ""
 
-            result = parse_resume_with_gemini(text)
+    if text.strip():
+        st.subheader("📃 Extracted Resume Text")
+        st.text_area("Resume Content", text, height=300)
 
-    return render_template('index.html', result=result)
+        if st.button("🔍 Parse Resume with Gemini"):
+            with st.spinner("Sending to Gemini..."):
+                parsed_output = parse_resume_with_gemini(text)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+            st.subheader("✅ Extracted Information")
+            if "error" in parsed_output:
+                st.error(parsed_output["error"])
+            else:
+                st.markdown(f"**👤 Name:** {parsed_output.get('Full Name', 'N/A')}")
+                st.markdown(f"**📧 Email:** {parsed_output.get('Email', 'N/A')}")
+                st.markdown(f"**📞 Phone:** {parsed_output.get('Phone', 'N/A')}")
+                st.markdown("**🛠️ Skills:**")
+                st.write(parsed_output.get("Skills", []))
+                st.markdown("**🎓 Education:**")
+                st.write(parsed_output.get("Education", "N/A"))
+                st.markdown("**💼 Experience:**")
+                st.write(parsed_output.get("Experience", "N/A"))
+
+                # Download as JSON
+                st.download_button(
+                    label="📥 Download Extracted Data as JSON",
+                    data=json.dumps(parsed_output, indent=2),
+                    file_name="parsed_resume.json",
+                    mime="application/json"
+                )
+    else:
+        st.warning("No readable text found in the uploaded file.")
