@@ -4,13 +4,21 @@ import PyPDF2
 import docx2txt
 import json
 
-st.set_page_config(page_title="AI Resume Parser", layout="centered")
+st.set_page_config(
+    page_title="AI Resume Parser",
+    page_icon="📄",
+    layout="centered",
+    menu_items={
+        "About": "Made with ❤️ by Joel Shibu"
+    }
+)
+
 st.title("📄 Resume Parser using Gemini AI")
 
 uploaded_file = st.file_uploader("Upload your resume (PDF or DOCX)", type=["pdf", "docx"])
 
 if uploaded_file:
-    # Extract text
+    # Extract text from uploaded file
     if uploaded_file.name.endswith(".pdf"):
         reader = PyPDF2.PdfReader(uploaded_file)
         text = "".join([page.extract_text() or "" for page in reader.pages])
